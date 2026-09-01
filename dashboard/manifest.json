@@ -1,0 +1,11 @@
+{
+  "name": "agent-roster",
+  "label": "Agents",
+  "description": "Agent identity cards and a chronological session timeline: who worked, when, on what, and what it cost.",
+  "icon": "Users",
+  "version": "0.1.0",
+  "tab": { "path": "/agents", "position": "after:sessions" },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

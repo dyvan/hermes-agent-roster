@@ -1,0 +1,7 @@
+name: agent-roster
+version: 0.1.0
+description: >
+  Agent identity cards and a chronological session timeline for the Hermes
+  dashboard — who worked, when, on what, and what it cost. Dashboard-only
+  plugin (no hooks, no tools); the UI lives under dashboard/.
+author: Yvan Dervillier (@dyvan)

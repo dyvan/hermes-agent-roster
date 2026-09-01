@@ -492,7 +492,8 @@ def build_roster(rows: List[Dict[str, Any]], identities: Dict[str, Any], now: Op
                     or default_name(top_source, models[0] if models else None, key),
             "tagline": ident.get("tagline") or "",
             "skills": ident.get("skills") or [],
-            "avatar": {**_avatar_for(key), **({"from": ident["color"], "to": ident["color"]} if ident.get("color") else {})},
+            "avatar": {**_avatar_for(key), **({"from": ident["color"], "to": ident["color"]} if ident.get("color") else {}),
+                       **({"custom": True} if (get_hermes_home() / "plugins" / "agent-roster" / "avatars" / f"{key}.img").is_file() else {})},
             "customized": key in identities,
             "sources": a["sources"],
             "models": models,
@@ -667,6 +668,55 @@ async def get_external_messages(rec_id: str):
     if msgs is None:
         raise HTTPException(status_code=404, detail="Unknown external session")
     return {"session_id": "ext:" + rec_id, "messages": msgs}
+
+
+_AVATAR_MAX_BYTES = 512 * 1024
+
+
+def _avatars_dir() -> Path:
+    d = get_hermes_home() / "plugins" / "agent-roster" / "avatars"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _safe_key(key: str) -> str:
+    if not key or not key.replace("-", "").replace("_", "").isalnum():
+        raise HTTPException(status_code=400, detail="Invalid agent key")
+    return key
+
+
+@router.post("/identity/{agent_key}/avatar")
+async def save_avatar(agent_key: str, body: Dict[str, Any]):
+    """Store a custom avatar image (base64 data URL or raw base64, ≤512KB)."""
+    import base64
+
+    key = _safe_key(agent_key)
+    data = str(body.get("image") or "")
+    if data.startswith("data:"):
+        data = data.split(",", 1)[-1]
+    try:
+        raw = base64.b64decode(data, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="image must be base64")
+    if not raw or len(raw) > _AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="image empty or over 512KB")
+    # Magic-byte check: PNG, JPEG or WebP only.
+    if not (raw[:8] == b"\x89PNG\r\n\x1a\n" or raw[:3] == b"\xff\xd8\xff"
+            or (raw[:4] == b"RIFF" and raw[8:12] == b"WEBP")):
+        raise HTTPException(status_code=400, detail="image must be PNG, JPEG or WebP")
+    (_avatars_dir() / f"{key}.img").write_bytes(raw)
+    return {"ok": True}
+
+
+@router.get("/identity/{agent_key}/avatar")
+async def get_avatar(agent_key: str):
+    key = _safe_key(agent_key)
+    path = _avatars_dir() / f"{key}.img"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="No custom avatar")
+    if FileResponse is None:  # pragma: no cover
+        raise HTTPException(status_code=500, detail="FileResponse unavailable")
+    return FileResponse(str(path), media_type="image/png")
 
 
 @router.post("/identity")

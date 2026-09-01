@@ -72,8 +72,34 @@
   // Small components
   // ---------------------------------------------------------------------
 
+  // Custom avatar images are fetched once per agent (authed) and cached as
+  // object URLs for the lifetime of the page.
+  const _avatarCache = {};
+  function _fetchAvatar(key) {
+    if (!_avatarCache[key]) {
+      const token = window.__HERMES_SESSION_TOKEN__;
+      _avatarCache[key] = fetch(BASE + "/identity/" + encodeURIComponent(key) + "/avatar",
+        { headers: token ? { Authorization: "Bearer " + token } : {} })
+        .then((r) => (r.ok ? r.blob() : null))
+        .then((b) => (b ? URL.createObjectURL(b) : null))
+        .catch(() => null);
+    }
+    return _avatarCache[key];
+  }
+
   function Avatar({ agent, size }) {
     const cls = "ar-avatar ar-avatar-" + (size || "sm");
+    const [img, setImg] = useState(null);
+    useEffect(() => {
+      let alive = true;
+      if (agent.avatar.custom) _fetchAvatar(agent.key).then((u) => { if (alive) setImg(u); });
+      else setImg(null);
+      return () => { alive = false; };
+    }, [agent.key, agent.avatar.custom]);
+    if (img) {
+      return h("div", { className: cls + " ar-avatar-img", "aria-hidden": "true" },
+        h("img", { src: img, alt: "" }));
+    }
     const grad = "linear-gradient(135deg," + agent.avatar.from + "," + agent.avatar.to + ")";
     return h("div", { className: cls, style: { background: grad }, "aria-hidden": "true" },
       (agent.name || "?").charAt(0).toUpperCase());
@@ -118,6 +144,26 @@
         onChange: (e) => setTagline(e.target.value) }),
       h("input", { value: skills, placeholder: "Skills, comma separated", "aria-label": "Skills",
         onChange: (e) => setSkills(e.target.value) }),
+      h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", "aria-label": "Avatar image",
+        onChange: (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          // Downscale to 256px so the stored avatar stays small.
+          const img = new Image();
+          img.onload = () => {
+            const s = Math.min(1, 256 / Math.max(img.width, img.height));
+            const cv = document.createElement("canvas");
+            cv.width = Math.round(img.width * s); cv.height = Math.round(img.height * s);
+            cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+            URL.revokeObjectURL(img.src);
+            fetchJSON(BASE + "/identity/" + encodeURIComponent(agent.key) + "/avatar", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ image: cv.toDataURL("image/png") }),
+            }).then(() => { delete _avatarCache[agent.key]; onSaved(); }).catch(() => {});
+          };
+          img.src = URL.createObjectURL(file);
+        } }),
       h("div", { className: "ar-form-row" },
         h("button", { className: "ar-btn", disabled: busy, onClick: save }, busy ? "Saving…" : "Save identity"),
         agent.customized ? h("button", {

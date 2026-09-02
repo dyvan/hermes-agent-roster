@@ -97,7 +97,10 @@
       return () => { alive = false; };
     }, [agent.key, agent.avatar.custom]);
     if (img) {
-      return h("div", { className: cls + " ar-avatar-img", "aria-hidden": "true" },
+      // Colored ring keeps agents distinguishable at a glance even when
+      // custom avatars share an art style.
+      return h("div", { className: cls + " ar-avatar-img", "aria-hidden": "true",
+        style: { "--ar-ring": agent.avatar.from } },
         h("img", { src: img, alt: "" }));
     }
     const grad = "linear-gradient(135deg," + agent.avatar.from + "," + agent.avatar.to + ")";

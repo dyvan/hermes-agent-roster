@@ -51,6 +51,11 @@
 .ar-avatar-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ar-avatar-img::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px var(--ar-ring, transparent); pointer-events: none; }
 .ar-form input[type="file"] { font-size: 11px; padding: 5px; color: var(--ar-ink-2); }
+.ar-mu { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.ar-mu td { padding: 2px 0; border-bottom: 1px solid var(--ar-line); }
+.ar-mu td:first-child { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.ar-mu td:nth-child(2) { text-align: right; color: var(--ar-ink-2); padding-right: 10px; }
+.ar-mu-cost { text-align: right; color: var(--ar-accent); }
 .ar-name { font-size: 16px; font-weight: 650; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-tagline { font-size: 12px; color: var(--ar-ink-2); line-height: 1.35; margin-top: 1px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ar-skills { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 14px 10px; }

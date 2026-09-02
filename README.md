@@ -82,3 +82,11 @@ FastAPI router mounted at `/api/plugins/agent-roster/`; tests are hermetic
 ## License
 
 MIT — © Yvan Dervillier ([@dyvan](https://github.com/dyvan))
+
+## Avatar pack
+
+`avatars/` ships 14 ready-to-use agent avatars (256×256, matching plush-mascot
+style on the Hermes teal): directeur, lecteur, auteur, critique, codeur,
+reviewer, runner, gardien, qa, pm, po, architecte, devops, support. Upload one
+from any card's **Customize** panel, or drop it directly into
+`~/.hermes/plugin-data/agent-roster/avatars/<agent-key>.img`.

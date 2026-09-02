@@ -68,6 +68,17 @@
     return new Date(ts * 1000).toDateString();
   }
 
+  // Long tool outputs: show head + tail with an omitted-lines marker instead
+  // of a blunt truncation (pattern borrowed from the langfuse exporter).
+  function headTail(s) {
+    s = String(s);
+    if (s.length <= 2400) return s;
+    const head = s.slice(0, 1400);
+    const tail = s.slice(-700);
+    const omitted = s.slice(1400, -700).split("\n").length;
+    return head + "\n… " + omitted + " lines omitted …\n" + tail;
+  }
+
   // ---------------------------------------------------------------------
   // Small components
   // ---------------------------------------------------------------------
@@ -214,6 +225,16 @@
             i ? h("span", { key: m + "-arr", className: "ar-arr" }, "→") : null,
             h("span", { key: m, className: "ar-m" }, m),
           ])),
+        (agent.model_usage && agent.model_usage.length)
+          ? h("div", null,
+              h("div", { className: "ar-back-label" }, "Cost by model (30 days)"),
+              h("table", { className: "ar-mu" }, h("tbody", null,
+                agent.model_usage.map((u) =>
+                  h("tr", { key: u.model },
+                    h("td", null, u.model),
+                    h("td", { className: "ar-mono" }, fmtTok(u.tokens)),
+                    h("td", { className: "ar-mono ar-mu-cost" }, fmtCost(u.cost_usd)))))))
+          : null,
         h("div", { className: "ar-back-label" }, "System prompt"),
         prompt === null
           ? h("div", { className: "ar-loading" }, "Loading…")
@@ -340,7 +361,7 @@
                           "aria-expanded": String(openTool === t.id),
                         }, "⚙ " + t.name),
                         openTool === t.id && t.out != null
-                          ? h("pre", { className: "ar-tool-out" }, String(t.out).slice(0, 4000))
+                          ? h("pre", { className: "ar-tool-out" }, headTail(t.out))
                           : null)))))));
   }
 
@@ -367,7 +388,8 @@
             session.error ? h("span", { className: "ar-badge ar-badge-err" }, "error") : null,
             h("span", null, session.message_count + " msgs · " + session.tool_call_count + " tool calls"))),
         h("div", { className: "ar-row-nums" },
-          h("div", { className: "ar-c" }, fmtCost(session.cost_usd)),
+          h("div", { className: "ar-c", title: session.cost_status ? "cost: " + session.cost_status : "" },
+            session.cost_status === "included" ? "incl." : fmtCost(session.cost_usd)),
           h("div", { className: "ar-d" }, fmtDur(session.duration_seconds)))),
       open ? h(Transcript, { session, agent, onGoto, hasChildren: childId }) : null);
   }

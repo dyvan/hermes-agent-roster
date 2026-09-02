@@ -147,6 +147,7 @@ _SESSIONS_SQL = """
            s.end_reason, s.message_count, s.tool_call_count,
            s.input_tokens, s.output_tokens,
            COALESCE(s.actual_cost_usd, s.estimated_cost_usd, 0) AS cost_usd,
+           s.cost_status,
            s.parent_session_id, s.system_prompt_hash, s.display_name,
            (SELECT MAX(m.timestamp) FROM messages m WHERE m.session_id = s.id)
                AS last_msg_at
@@ -221,6 +222,49 @@ def _fetch_profile_sessions(days: int) -> List[Dict[str, Any]]:
                 conn.close()
         except Exception:
             continue  # older schema or locked profile — skip, never break the page
+    return rows
+
+
+_MODEL_USAGE_SQL = """
+    SELECT u.session_id, u.model,
+           SUM(u.input_tokens + u.output_tokens) AS tokens,
+           SUM(CASE WHEN u.actual_cost_usd > 0 THEN u.actual_cost_usd
+                    ELSE u.estimated_cost_usd END) AS cost_usd
+    FROM session_model_usage u
+    JOIN sessions s ON s.id = u.session_id
+    WHERE s.archived = 0 AND s.started_at > ?
+    GROUP BY u.session_id, u.model
+"""
+
+
+def _fetch_model_usage(days: int) -> List[Dict[str, Any]]:
+    """Per-session per-model token/cost rows (main DB + every profile).
+    The session_model_usage table may not exist on older schemas — skip then."""
+    cutoff = time.time() - days * 86400
+    rows: List[Dict[str, Any]] = []
+    try:
+        db = _open_db()
+        try:
+            for r in db._conn.execute(_MODEL_USAGE_SQL, (cutoff,)).fetchall():
+                rows.append(dict(r))
+        finally:
+            db.close()
+    except Exception:
+        pass
+    for d in _profile_dirs():
+        try:
+            conn = _open_profile_db(d.name)
+            if conn is None:
+                continue
+            try:
+                for r in conn.execute(_MODEL_USAGE_SQL, (cutoff,)).fetchall():
+                    row = dict(r)
+                    row["session_id"] = f"prof:{d.name}:{row['session_id']}"
+                    rows.append(row)
+            finally:
+                conn.close()
+        except Exception:
+            continue
     return rows
 
 
@@ -535,9 +579,24 @@ async def get_roster(days: int = 30):
     days = max(days, 30)
     rows = _fetch_sessions(days) + _fetch_profile_sessions(days) + _load_external(days)
     agents = build_roster(rows, _load_identities())
+    # Per-model cost breakdown (30-day window), attributed via session→agent.
+    sid_to_key = {r["id"]: (r.get("_agent_key") or agent_key_for(r.get("system_prompt_hash"), r.get("source"), r.get("model"))) for r in rows}
+    per_agent: Dict[str, Dict[str, Dict[str, float]]] = {}
+    for u in _fetch_model_usage(days):
+        key = sid_to_key.get(u["session_id"])
+        if not key or not u.get("model"):
+            continue
+        m = per_agent.setdefault(key, {}).setdefault(u["model"], {"tokens": 0, "cost_usd": 0.0})
+        m["tokens"] += u.get("tokens") or 0
+        m["cost_usd"] += u.get("cost_usd") or 0.0
     for a in agents:
         if a["key"].startswith("prof-") and not a["tagline"]:
             a["tagline"] = _profile_soul_tagline(a["key"][5:])
+        usage = per_agent.get(a["key"], {})
+        a["model_usage"] = sorted(
+            ({"model": m, "tokens": int(v["tokens"]), "cost_usd": v["cost_usd"]} for m, v in usage.items()),
+            key=lambda x: (-x["cost_usd"], -x["tokens"]),
+        )[:6]
     return {"agents": agents, "generated_at": time.time()}
 
 
@@ -588,6 +647,7 @@ async def get_timeline(days: int = 7, agent: str = "", limit: int = 200):
             "started_at": row["started_at"],
             "duration_seconds": (time.time() - row["started_at"]) if _is_running(row) else _duration_seconds(row),
             "cost_usd": row.get("cost_usd") or 0.0,
+            "cost_status": row.get("cost_status"),
             "input_tokens": row.get("input_tokens") or 0,
             "output_tokens": row.get("output_tokens") or 0,
             "message_count": row.get("message_count") or 0,

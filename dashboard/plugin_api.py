@@ -66,10 +66,33 @@ _PALETTE = [
 # Storage
 # ---------------------------------------------------------------------------
 
-def _identities_path() -> Path:
-    d = get_hermes_home() / "plugins" / "agent-roster"
+def _data_dir() -> Path:
+    """Plugin data lives OUTSIDE the install dir: user plugins install at
+    ~/.hermes/plugins/<name>/, so keeping state there means a reinstall or
+    rsync --delete wipes identities/avatars/ingested records."""
+    d = get_hermes_home() / "plugin-data" / "agent-roster"
     d.mkdir(parents=True, exist_ok=True)
-    return d / "identities.json"
+    legacy = get_hermes_home() / "plugins" / "agent-roster"
+    # One-shot migration from the pre-0.2 layout (data inside the install dir).
+    try:
+        for name in ("identities.json", "ingest.jsonl"):
+            src = legacy / name
+            if src.is_file() and not (d / name).exists():
+                (d / name).write_bytes(src.read_bytes())
+        old_avatars = legacy / "avatars"
+        new_avatars = d / "avatars"
+        if old_avatars.is_dir():
+            new_avatars.mkdir(exist_ok=True)
+            for f in old_avatars.glob("*.img"):
+                if not (new_avatars / f.name).exists():
+                    (new_avatars / f.name).write_bytes(f.read_bytes())
+    except Exception:
+        pass
+    return d
+
+
+def _identities_path() -> Path:
+    return _data_dir() / "identities.json"
 
 
 def _load_identities() -> Dict[str, Any]:
@@ -269,9 +292,7 @@ _INGEST_LOCK = threading.Lock()
 
 
 def _ingest_path() -> Path:
-    d = get_hermes_home() / "plugins" / "agent-roster"
-    d.mkdir(parents=True, exist_ok=True)
-    return d / "ingest.jsonl"
+    return _data_dir() / "ingest.jsonl"
 
 
 def external_key(agent_name: str) -> str:
@@ -493,7 +514,7 @@ def build_roster(rows: List[Dict[str, Any]], identities: Dict[str, Any], now: Op
             "tagline": ident.get("tagline") or "",
             "skills": ident.get("skills") or [],
             "avatar": {**_avatar_for(key), **({"from": ident["color"], "to": ident["color"]} if ident.get("color") else {}),
-                       **({"custom": True} if (get_hermes_home() / "plugins" / "agent-roster" / "avatars" / f"{key}.img").is_file() else {})},
+                       **({"custom": True} if (_data_dir() / "avatars" / f"{key}.img").is_file() else {})},
             "customized": key in identities,
             "sources": a["sources"],
             "models": models,
@@ -674,7 +695,7 @@ _AVATAR_MAX_BYTES = 512 * 1024
 
 
 def _avatars_dir() -> Path:
-    d = get_hermes_home() / "plugins" / "agent-roster" / "avatars"
+    d = _data_dir() / "avatars"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

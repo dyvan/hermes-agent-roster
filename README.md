@@ -12,7 +12,7 @@ Agent identity cards and a chronological session timeline for the
   runs / active time / cost for **today, this week, or this month**.
   Flip a card to see the models the agent actually used (most used first),
   its full system prompt, and to customize its identity (name, tagline,
-  skills) — stored locally in `~/.hermes/plugins/agent-roster/identities.json`.
+  skills) — stored locally in `~/.hermes/plugin-data/agent-roster/identities.json`.
 - **Session timeline** — a chronological feed grouped by day. Each row
   carries the agent's avatar, a one-line title, model badge, message/tool
   counts, and cost + duration. Child sessions (delegated work) are nested
@@ -48,14 +48,14 @@ them from the card itself.
 Work that doesn't go through the Hermes session engine (a `no-agent` cron
 script, a CI pipeline, a bot calling models directly) can still appear in
 the roster and timeline. Append one JSON object per line to
-`~/.hermes/plugins/agent-roster/ingest.jsonl`:
+`~/.hermes/plugin-data/agent-roster/ingest.jsonl`:
 
 ```bash
 echo '{"agent":"ql-runner","title":"nightly pipeline — card E003",
   "started_at":'"$(date +%s)"',"duration_seconds":312,"model":"gemma-4-e4b",
   "cost_usd":0.004,"input_tokens":18200,"output_tokens":2400,
   "messages":[{"role":"user","content":"brief"},{"role":"assistant","content":"result"}]}' \
-  >> ~/.hermes/plugins/agent-roster/ingest.jsonl
+  >> ~/.hermes/plugin-data/agent-roster/ingest.jsonl
 ```
 
 Only `agent` and `started_at` (unix epoch seconds) are required. Optional:

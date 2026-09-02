@@ -32,7 +32,7 @@ import re
 import time
 from pathlib import Path
 
-INGEST = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))) / "plugins" / "agent-roster" / "ingest.jsonl"
+INGEST = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))) / "plugin-data" / "agent-roster" / "ingest.jsonl"
 RUN_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-[A-Za-z]\d+(?:-r\d+)?$")
 FRESH_DAYS = 3  # only look at recent run dirs
 
